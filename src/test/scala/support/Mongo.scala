@@ -2,6 +2,7 @@ package support
 
 import java.util.concurrent.TimeUnit
 
+import io.sdkman.db.MongoConnectivity
 import io.sdkman.repos.{Application, Candidate, Version}
 import org.mongodb.scala._
 import org.mongodb.scala.bson.collection.immutable.Document
@@ -11,29 +12,11 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-object Mongo {
+trait Mongo {
+
+  self: MongoConnectivity =>
 
   import Helpers._
-  import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
-  import org.mongodb.scala.bson.codecs.DEFAULT_CODEC_REGISTRY
-  import org.mongodb.scala.bson.codecs.Macros._
-
-  val codecRegistry = fromRegistries(
-    fromProviders(
-      createCodecProviderIgnoreNone[Version],
-      createCodecProvider[Candidate],
-      createCodecProvider[Application]),
-    DEFAULT_CODEC_REGISTRY)
-
-  lazy val mongoClient = MongoClient("mongodb://localhost:27017")
-
-  lazy val db = mongoClient.getDatabase("sdkman").withCodecRegistry(codecRegistry)
-
-  lazy val appCollection: MongoCollection[Application] = db.getCollection("application")
-
-  lazy val versionsCollection: MongoCollection[Version] = db.getCollection("versions")
-
-  lazy val candidatesCollection: MongoCollection[Candidate] = db.getCollection("candidates")
 
   def insertApplication(app: Application) = appCollection.insertOne(app).results()
 
@@ -42,8 +25,6 @@ object Mongo {
   def insertVersion(v: Version) = versionsCollection.insertOne(v).results()
 
   def insertCandidates(cs: Seq[Candidate]) = candidatesCollection.insertMany(cs).results()
-
-  def insertCandidate(c: Candidate) = candidatesCollection.insertOne(c).results()
 
   def dropAllCollections() = {
     appCollection.drop().results()

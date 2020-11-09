@@ -1,13 +1,15 @@
 package io.sdkman.repos
 
-import com.typesafe.config.ConfigFactory
+import com.dimafeng.testcontainers.{ForAllTestContainer, MongoDBContainer}
+import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import io.sdkman.db.{MongoConfiguration, MongoConnectivity}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfter, Matchers, OptionValues, WordSpec}
+import support.Helpers.GenericObservable
 import support.Mongo
-import support.Mongo._
 
-class CandidatesRepoSpec extends WordSpec with Matchers with BeforeAndAfter with ScalaFutures with OptionValues {
+class CandidatesRepoSpec extends WordSpec with Matchers with BeforeAndAfter with ScalaFutures with OptionValues with ForAllTestContainer {
+  override val container = MongoDBContainer("mongo:3.2")
 
   val scala = Candidate("scala", "Scala", "The Scala Language", Some("2.12.0"), "http://www.scala-lang.org/", "UNIVERSAL")
   val groovy = Candidate("groovy", "Groovy", "The Groovy Language", Some("2.4.7"), "http://www.groovy-lang.org/", "UNIVERSAL")
@@ -15,7 +17,6 @@ class CandidatesRepoSpec extends WordSpec with Matchers with BeforeAndAfter with
   val micronaut = Candidate("micronaut", "Micronaut", "The Micronaut framework", None, "http://micronaut.io/", "UNIVERSAL")
 
   "candidates repository" should {
-
     "find all candidates regardless of distribution" in new TestRepo {
       whenReady(findAllCandidates()) { candidates =>
         candidates.size shouldBe 4
@@ -85,12 +86,14 @@ class CandidatesRepoSpec extends WordSpec with Matchers with BeforeAndAfter with
   }
 
   before {
-    Mongo.dropAllCollections()
-    Mongo.insertCandidates(Seq(scala, groovy, java, micronaut))
+    new TestRepo {
+      dropAllCollections()
+      Seq(scala, groovy, java, micronaut).foreach(candidatesCollection.insertOne(_).results())
+    }
   }
 
-  private trait TestRepo extends CandidatesRepo with MongoConnectivity with MongoConfiguration {
-    override val config = ConfigFactory.load()
+  private trait TestRepo extends CandidatesRepo with MongoConnectivity with MongoConfiguration with Mongo {
+    override val config = ConfigFactory.load().withValue("mongo.url.port", ConfigValueFactory.fromAnyRef(container.mappedPort(27017)))
   }
 
 }
